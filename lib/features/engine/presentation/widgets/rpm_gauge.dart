@@ -285,3 +285,4 @@ class _GaugePainter extends CustomPainter {
       old.isRunning     != isRunning     ||
       old.isRevLimiting != isRevLimiting;
 }
+
