@@ -113,3 +113,4 @@ final platformChannelServiceProvider = Provider<PlatformChannelService>((ref) {
   ref.onDispose(service.dispose);
   return service;
 });
+
