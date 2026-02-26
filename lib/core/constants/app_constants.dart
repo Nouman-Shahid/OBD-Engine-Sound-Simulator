@@ -24,3 +24,4 @@ class AppConstants {
   static const double midRpmThreshold   = 4500.0;
   static const double highRpmThreshold  = 6500.0;
 }
+
