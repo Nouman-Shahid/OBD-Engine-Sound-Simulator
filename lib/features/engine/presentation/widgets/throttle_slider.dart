@@ -203,3 +203,4 @@ class _ThrottlePainter extends CustomPainter {
   bool shouldRepaint(_ThrottlePainter old) =>
       old.value != value || old.glowAmt != glowAmt || old.enabled != enabled;
 }
+
