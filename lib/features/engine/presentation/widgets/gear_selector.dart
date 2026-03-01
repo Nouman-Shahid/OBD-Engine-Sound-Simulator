@@ -185,3 +185,4 @@ class _MiniGearDot extends StatelessWidget {
     );
   }
 }
+
