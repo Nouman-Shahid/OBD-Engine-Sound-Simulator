@@ -40,3 +40,4 @@ flutter run
 ## Platform Channel
 
 The `PlatformChannelService` calls the `enginex/audio` MethodChannel. The Android host (`src/Main.java`) receives RPM values and adjusts playback pitch and sample selection in real time.
+
