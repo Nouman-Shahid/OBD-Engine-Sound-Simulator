@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:enginex/features/engine/data/models/engine_state.dart';
+import 'package:enginex/features/engine/data/models/obd_state.dart';
 import 'package:enginex/features/engine/data/models/vehicle_profile.dart';
 import 'package:enginex/features/engine/domain/engine_notifier.dart';
 import 'package:enginex/services/platform_channel_service.dart';
@@ -13,7 +14,7 @@ final engineProvider =
   return EngineNotifier(channel);
 });
 
-// ── Derived / scoped providers (select prevents unnecessary rebuilds) ──────
+// ── Derived providers (select() prevents unnecessary rebuilds) ────────────
 
 final rpmProvider = Provider<double>(
   (ref) => ref.watch(engineProvider.select((s) => s.rpm)),
@@ -49,3 +50,15 @@ final selectedVehicleProvider = Provider<VehicleProfile>((ref) {
   final id = ref.watch(engineProvider.select((s) => s.vehicleId));
   return VehicleCatalogue.findById(id);
 });
+
+// ── OBD state ─────────────────────────────────────────────────────────────
+
+final obdProvider =
+    StateNotifierProvider<OBDNotifier, OBDState>((ref) {
+  final channel = ref.watch(platformChannelServiceProvider);
+  return OBDNotifier(channel);
+});
+
+final isObdConnectedProvider = Provider<bool>(
+  (ref) => ref.watch(obdProvider.select((s) => s.isConnected)),
+);
