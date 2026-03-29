@@ -1,8 +1,8 @@
 name: enginex
-description: "A new Flutter project."
+description: "EngineX Pro — real-time engine sound synthesiser."
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 2.0.0+1
 
 environment:
   sdk: ^3.0.0
@@ -10,12 +10,24 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  cupertino_icons: ^1.0.8
+
+  # ── State management ────────────────────────────────────────────────────────
   flutter_riverpod: ^2.5.1
+
+  # ── UI / fonts ──────────────────────────────────────────────────────────────
+  cupertino_icons: ^1.0.8
   google_fonts: ^6.2.1
+
+  # ── Data models ─────────────────────────────────────────────────────────────
   freezed_annotation: ^2.4.4
   json_annotation: ^4.9.0
   collection: ^1.18.0
+
+  # ── Permissions (Bluetooth for OBD-II) ─────────────────────────────────────
+  permission_handler: ^11.3.1
+
+  # ── Persistence (last OBD device, settings) ────────────────────────────────
+  shared_preferences: ^2.3.2
 
 dev_dependencies:
   flutter_test:
