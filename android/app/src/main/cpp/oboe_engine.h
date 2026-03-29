@@ -80,7 +80,14 @@ public:
                     float  formantGain1,
                     float  turboGain,
                     float  turboSpeedRatio,
-                    int    turboBladeCount);
+                    int    turboBladeCount,
+                    float  intakeSampleGain,
+                    float  exhaustSampleGain);
+
+    /** Update current gear [0 = neutral, 1–6]. Affects load DSP model. */
+    void setGear(int gear) {
+        _synth.gear.store(gear, std::memory_order_relaxed);
+    }
 
     /** Manually trigger a backfire/pop event. */
     void triggerBackfire() {

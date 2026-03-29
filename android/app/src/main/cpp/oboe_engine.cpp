@@ -114,7 +114,9 @@ void OboeEngine::setProfile(int    cylinders,
                              float  formantGain1,
                              float  turboGain,
                              float  turboSpeedRatio,
-                             int    turboBladeCount)
+                             int    turboBladeCount,
+                             float  intakeSampleGain,
+                             float  exhaustSampleGain)
 {
     _synth.cylinders   .store(cylinders,    std::memory_order_relaxed);
     _synth.noiseLevel  .store(noiseLevel,   std::memory_order_relaxed);
@@ -125,9 +127,11 @@ void OboeEngine::setProfile(int    cylinders,
     _synth.formantQ1   .store(formantQ1,    std::memory_order_relaxed);
     _synth.formantGain0.store(formantGain0, std::memory_order_relaxed);
     _synth.formantGain1.store(formantGain1, std::memory_order_relaxed);
-    _synth.turboGain      .store(turboGain,       std::memory_order_relaxed);
-    _synth.turboSpeedRatio.store(turboSpeedRatio, std::memory_order_relaxed);
-    _synth.turboBladeCount.store(turboBladeCount, std::memory_order_relaxed);
+    _synth.turboGain         .store(turboGain,         std::memory_order_relaxed);
+    _synth.turboSpeedRatio   .store(turboSpeedRatio,   std::memory_order_relaxed);
+    _synth.turboBladeCount   .store(turboBladeCount,   std::memory_order_relaxed);
+    _synth.intakeSampleGain  .store(intakeSampleGain,  std::memory_order_relaxed);
+    _synth.exhaustSampleGain .store(exhaustSampleGain, std::memory_order_relaxed);
 
     const int count = std::min(numWeights, kProMaxHarmonics);
     for (int i = 0; i < count; ++i) {

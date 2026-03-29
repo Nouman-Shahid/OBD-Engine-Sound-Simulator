@@ -173,7 +173,9 @@ Java_com_enginex_audio_OboeAudioEngine_nativeSetProfile(
         jdouble      formantGain1,
         jdouble      turboGain,
         jdouble      turboSpeedRatio,
-        jint         turboBladeCount)
+        jint         turboBladeCount,
+        jdouble      intakeSampleGain,
+        jdouble      exhaustSampleGain)
 {
     OboeEngine* e = getEngine(env, thiz);
     if (!e) return;
@@ -194,8 +196,20 @@ Java_com_enginex_audio_OboeAudioEngine_nativeSetProfile(
         static_cast<float>(formantGain1),
         static_cast<float>(turboGain),
         static_cast<float>(turboSpeedRatio),
-        static_cast<int>(turboBladeCount)
+        static_cast<int>(turboBladeCount),
+        static_cast<float>(intakeSampleGain),
+        static_cast<float>(exhaustSampleGain)
     );
+}
+
+// ── nativeSetGear ─────────────────────────────────────────────────────────────
+
+JNIEXPORT void JNICALL
+Java_com_enginex_audio_OboeAudioEngine_nativeSetGear(
+        JNIEnv* env, jobject thiz, jint gear)
+{
+    OboeEngine* e = getEngine(env, thiz);
+    if (e) e->setGear(static_cast<int>(gear));
 }
 
 // ── nativeTriggerBackfire ─────────────────────────────────────────────────────

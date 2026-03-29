@@ -17,6 +17,7 @@ add_library(
         oboe_engine.cpp
         jni_bridge.cpp
         synth/engine_synth_pro.cpp
+        audio/procedural_samples.cpp
         # Legacy synth kept for reference — not linked into the binary
         # synth/engine_synth.cpp
 )
@@ -26,6 +27,7 @@ target_include_directories(enginex_audio PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/synth
     ${CMAKE_CURRENT_SOURCE_DIR}/dsp
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio
 )
 
 # ── Linked libraries ──────────────────────────────────────────────────────────
