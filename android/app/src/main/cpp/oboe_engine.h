@@ -3,23 +3,29 @@
 #include <oboe/Oboe.h>
 #include <atomic>
 #include <memory>
-#include "synth/engine_synth.h"
+#include "synth/engine_synth_pro.h"
 
 namespace enginex {
 
 /**
- * Low-latency Oboe audio stream + engine synthesiser.
+ * Low-latency stereo Oboe audio stream driving the pro engine synthesiser.
  *
- * Oboe is asked for AAUDIO_PERFORMANCE_MODE_LOW_LATENCY with EXCLUSIVE
- * sharing mode. On devices that can't satisfy EXCLUSIVE it automatically
- * falls back to SHARED while preserving low-latency mode.
+ * Oboe configuration:
+ *   - Direction:        Output only
+ *   - PerformanceMode:  LowLatency
+ *   - SharingMode:      Exclusive (falls back to Shared automatically)
+ *   - Format:           Float32
+ *   - Channels:         Stereo (L+R identical — mono synth, duplicated)
+ *   - SampleRate:       48 000 Hz
+ *   - FramesPerCallback:256 (≈5.3 ms)
  *
- * The audio callback (onAudioReady) is called by Oboe on a high-priority
- * real-time thread. We fill the buffer by calling EngineSynth::render —
- * entirely lock-free.
+ * Error recovery:
+ *   onErrorAfterClose() restarts the stream automatically on device
+ *   disconnection (headphone unplug, Bluetooth source change, etc.).
  *
- * Error recovery: if the stream is disconnected (e.g. headphone unplug)
- * onErrorAfterClose restarts the stream automatically.
+ * Thread safety:
+ *   All parameters cross the thread boundary via std::atomic in EngineSynthPro.
+ *   The audio callback is fully lock-free.
  */
 class OboeEngine : public oboe::AudioStreamDataCallback,
                    public oboe::AudioStreamErrorCallback {
@@ -27,34 +33,84 @@ public:
     OboeEngine();
     ~OboeEngine();
 
-    bool init(int cylinders, float idleRpm, float revLimiterRpm,
-              const float* harmonicWeights, int numWeights, float noiseLevel);
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
+
+    /**
+     * Initialise synth and open Oboe stream.
+     * @param harmonicWeights  Array of kProMaxHarmonics floats
+     * @param numWeights       Length of harmonicWeights (≤ kProMaxHarmonics)
+     */
+    bool init(int    cylinders,
+              float  idleRpm,
+              float  revLimiterRpm,
+              const float* harmonicWeights,
+              int    numWeights,
+              float  noiseLevel,
+              float  combFeedback,
+              float  formantFreq0,
+              float  formantFreq1,
+              float  formantQ0,
+              float  formantQ1,
+              float  formantGain0,
+              float  formantGain1,
+              float  turboGain,
+              float  turboSpeedRatio,
+              int    turboBladeCount);
 
     bool start();
     void stop();
     void release();
 
+    // ── Real-time parameter updates ───────────────────────────────────────────
+
+    /** Update RPM and throttle — called at ~60 Hz from Kotlin. */
     void setParams(float rpm, float throttle);
-    void setProfile(int cylinders, const float* harmonicWeights,
-                    int numWeights, float noiseLevel);
 
-    bool isRunning() const { return _running.load(std::memory_order_relaxed); }
+    /** Swap to a new vehicle profile. */
+    void setProfile(int    cylinders,
+                    const float* harmonicWeights,
+                    int    numWeights,
+                    float  noiseLevel,
+                    float  combFeedback,
+                    float  formantFreq0,
+                    float  formantFreq1,
+                    float  formantQ0,
+                    float  formantQ1,
+                    float  formantGain0,
+                    float  formantGain1,
+                    float  turboGain,
+                    float  turboSpeedRatio,
+                    int    turboBladeCount);
 
-    // ── AudioStreamDataCallback ───────────────────────────────────────────────
+    /** Manually trigger a backfire/pop event. */
+    void triggerBackfire() {
+        _synth.triggerBackfire.store(true, std::memory_order_relaxed);
+    }
+
+    bool isRunning() const {
+        return _running.load(std::memory_order_relaxed);
+    }
+
+    // ── Oboe callbacks ────────────────────────────────────────────────────────
+
     oboe::DataCallbackResult onAudioReady(
         oboe::AudioStream* stream,
         void*              audioData,
         int32_t            numFrames) override;
 
-    // ── AudioStreamErrorCallback ──────────────────────────────────────────────
     void onErrorAfterClose(oboe::AudioStream* stream,
                            oboe::Result       error) override;
 
 private:
     std::shared_ptr<oboe::AudioStream> _stream;
-    EngineSynth  _synth;
+    EngineSynthPro  _synth;
     std::atomic<bool> _running{false};
-    int _sampleRate{48000};
+    int  _sampleRate  {48000};
+    int  _channelCount{2};      // stereo output
+
+    // Mono render scratch buffer (we render mono then duplicate to stereo)
+    static constexpr int kMaxBurst = 512;
+    float _monoScratch[kMaxBurst]{};
 
     bool openStream();
     void closeStream();

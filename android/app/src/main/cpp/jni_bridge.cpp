@@ -1,11 +1,20 @@
 /**
  * JNI bridge between Kotlin [OboeAudioEngine] and the C++ [OboeEngine].
  *
- * Each JNI function maps 1:1 to a private external fun in OboeAudioEngine.kt.
- * The OboeEngine instance is stored as a jlong handle (pointer-as-int) on
- * the Kotlin side — this is the idiomatic Android NDK pattern.
+ * Package: com.enginex.audio  (class OboeAudioEngine)
  *
- * Package: com.enginex.audio  ↔  class OboeAudioEngine
+ * The OboeEngine* is stored as a jlong on the Kotlin side (_nativeHandle).
+ * All JNI functions recover the pointer via getEngine() before use.
+ *
+ * Thread safety:
+ *   - nativeInit / nativeRelease called on the main thread at app lifecycle events.
+ *   - nativeStart / nativeStop called from the Kotlin audio manager.
+ *   - nativeSetParams called at ~60 Hz from Kotlin physics loop.
+ *   - nativeSetProfile called on vehicle selection (infrequent).
+ *   - nativeTriggerBackfire called on throttle-lift events.
+ *
+ * All cross-thread parameter writes go through std::atomic in OboeEngine/EngineSynthPro,
+ * so none of these calls require additional locking.
  */
 
 #include <jni.h>
@@ -14,30 +23,43 @@
 
 #define LOG_TAG "JNI_Bridge"
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO,  LOG_TAG, __VA_ARGS__)
 
 using enginex::OboeEngine;
+using enginex::kProMaxHarmonics;
 
-// ── Helper: recover OboeEngine* from the hidden Kotlin field ─────────────────
+// ── Handle helpers ────────────────────────────────────────────────────────────
 
 static OboeEngine* getEngine(JNIEnv* env, jobject thiz) {
-    jclass clazz = env->GetObjectClass(thiz);
-    jfieldID fid = env->GetFieldID(clazz, "_nativeHandle", "J");
-    if (!fid) {
-        LOGE("_nativeHandle field not found");
-        return nullptr;
-    }
+    jclass   clazz = env->GetObjectClass(thiz);
+    jfieldID fid   = env->GetFieldID(clazz, "_nativeHandle", "J");
+    if (!fid) { LOGE("_nativeHandle field not found"); return nullptr; }
     return reinterpret_cast<OboeEngine*>(env->GetLongField(thiz, fid));
 }
 
-static void setEngine(JNIEnv* env, jobject thiz, OboeEngine* engine) {
-    jclass clazz = env->GetObjectClass(thiz);
-    jfieldID fid = env->GetFieldID(clazz, "_nativeHandle", "J");
-    if (fid) env->SetLongField(thiz, fid, reinterpret_cast<jlong>(engine));
+static void setEngine(JNIEnv* env, jobject thiz, OboeEngine* e) {
+    jclass   clazz = env->GetObjectClass(thiz);
+    jfieldID fid   = env->GetFieldID(clazz, "_nativeHandle", "J");
+    if (fid) env->SetLongField(thiz, fid, reinterpret_cast<jlong>(e));
+}
+
+/** Convert a jdoubleArray to a C float array. Returns element count. */
+static int jdoubleArrayToFloat(JNIEnv* env, jdoubleArray arr,
+                                float* out, int maxOut) {
+    if (!arr) return 0;
+    const jsize len = env->GetArrayLength(arr);
+    jdouble* src    = env->GetDoubleArrayElements(arr, nullptr);
+    const int count = (len < maxOut) ? static_cast<int>(len) : maxOut;
+    for (int i = 0; i < count; ++i) out[i] = static_cast<float>(src[i]);
+    env->ReleaseDoubleArrayElements(arr, src, JNI_ABORT);
+    return count;
 }
 
 // ── JNI functions ─────────────────────────────────────────────────────────────
 
 extern "C" {
+
+// ── nativeInit ────────────────────────────────────────────────────────────────
 
 JNIEXPORT jboolean JNICALL
 Java_com_enginex_audio_OboeAudioEngine_nativeInit(
@@ -47,31 +69,46 @@ Java_com_enginex_audio_OboeAudioEngine_nativeInit(
         jdouble      idleRpm,
         jdouble      revLimiterRpm,
         jdoubleArray harmonicWeightsJ,
-        jdouble      noiseLevel)
+        jdouble      noiseLevel,
+        jdouble      combFeedback,
+        jdouble      formantFreq0,
+        jdouble      formantFreq1,
+        jdouble      formantQ0,
+        jdouble      formantQ1,
+        jdouble      formantGain0,
+        jdouble      formantGain1,
+        jdouble      turboGain,
+        jdouble      turboSpeedRatio,
+        jint         turboBladeCount)
 {
-    // Create new engine instance and attach to Kotlin object.
     auto* engine = new OboeEngine();
     setEngine(env, thiz, engine);
 
-    // Convert jdoubleArray → float[].
-    jsize   len     = env->GetArrayLength(harmonicWeightsJ);
-    jdouble* src    = env->GetDoubleArrayElements(harmonicWeightsJ, nullptr);
-    float floatWeights[enginex::kMaxHarmonics]{};
-    for (int i = 0; i < len && i < enginex::kMaxHarmonics; ++i) {
-        floatWeights[i] = static_cast<float>(src[i]);
-    }
-    env->ReleaseDoubleArrayElements(harmonicWeightsJ, src, JNI_ABORT);
+    float fw[kProMaxHarmonics]{};
+    const int len = jdoubleArrayToFloat(env, harmonicWeightsJ, fw, kProMaxHarmonics);
 
-    bool ok = engine->init(
+    const bool ok = engine->init(
         static_cast<int>(cylinders),
         static_cast<float>(idleRpm),
         static_cast<float>(revLimiterRpm),
-        floatWeights,
-        static_cast<int>(len),
-        static_cast<float>(noiseLevel)
+        fw, len,
+        static_cast<float>(noiseLevel),
+        static_cast<float>(combFeedback),
+        static_cast<float>(formantFreq0),
+        static_cast<float>(formantFreq1),
+        static_cast<float>(formantQ0),
+        static_cast<float>(formantQ1),
+        static_cast<float>(formantGain0),
+        static_cast<float>(formantGain1),
+        static_cast<float>(turboGain),
+        static_cast<float>(turboSpeedRatio),
+        static_cast<int>(turboBladeCount)
     );
+    LOGI("nativeInit: cyl=%d idle=%.0f ok=%d", cylinders, idleRpm, ok);
     return static_cast<jboolean>(ok);
 }
+
+// ── nativeStart ───────────────────────────────────────────────────────────────
 
 JNIEXPORT jboolean JNICALL
 Java_com_enginex_audio_OboeAudioEngine_nativeStart(
@@ -82,6 +119,8 @@ Java_com_enginex_audio_OboeAudioEngine_nativeStart(
     return static_cast<jboolean>(e->start());
 }
 
+// ── nativeStop ────────────────────────────────────────────────────────────────
+
 JNIEXPORT void JNICALL
 Java_com_enginex_audio_OboeAudioEngine_nativeStop(
         JNIEnv* env, jobject thiz)
@@ -89,6 +128,8 @@ Java_com_enginex_audio_OboeAudioEngine_nativeStop(
     OboeEngine* e = getEngine(env, thiz);
     if (e) e->stop();
 }
+
+// ── nativeRelease ─────────────────────────────────────────────────────────────
 
 JNIEXPORT void JNICALL
 Java_com_enginex_audio_OboeAudioEngine_nativeRelease(
@@ -102,6 +143,8 @@ Java_com_enginex_audio_OboeAudioEngine_nativeRelease(
     }
 }
 
+// ── nativeSetParams ───────────────────────────────────────────────────────────
+
 JNIEXPORT void JNICALL
 Java_com_enginex_audio_OboeAudioEngine_nativeSetParams(
         JNIEnv* env, jobject thiz,
@@ -112,28 +155,67 @@ Java_com_enginex_audio_OboeAudioEngine_nativeSetParams(
                         static_cast<float>(throttle));
 }
 
+// ── nativeSetProfile ──────────────────────────────────────────────────────────
+
 JNIEXPORT void JNICALL
 Java_com_enginex_audio_OboeAudioEngine_nativeSetProfile(
         JNIEnv*      env,
         jobject      thiz,
         jint         cylinders,
         jdoubleArray harmonicWeightsJ,
-        jdouble      noiseLevel)
+        jdouble      noiseLevel,
+        jdouble      combFeedback,
+        jdouble      formantFreq0,
+        jdouble      formantFreq1,
+        jdouble      formantQ0,
+        jdouble      formantQ1,
+        jdouble      formantGain0,
+        jdouble      formantGain1,
+        jdouble      turboGain,
+        jdouble      turboSpeedRatio,
+        jint         turboBladeCount)
 {
     OboeEngine* e = getEngine(env, thiz);
     if (!e) return;
 
-    jsize   len  = env->GetArrayLength(harmonicWeightsJ);
-    jdouble* src = env->GetDoubleArrayElements(harmonicWeightsJ, nullptr);
-    float fw[enginex::kMaxHarmonics]{};
-    for (int i = 0; i < len && i < enginex::kMaxHarmonics; ++i) {
-        fw[i] = static_cast<float>(src[i]);
-    }
-    env->ReleaseDoubleArrayElements(harmonicWeightsJ, src, JNI_ABORT);
+    float fw[kProMaxHarmonics]{};
+    const int len = jdoubleArrayToFloat(env, harmonicWeightsJ, fw, kProMaxHarmonics);
 
-    e->setProfile(static_cast<int>(cylinders), fw,
-                  static_cast<int>(len),
-                  static_cast<float>(noiseLevel));
+    e->setProfile(
+        static_cast<int>(cylinders),
+        fw, len,
+        static_cast<float>(noiseLevel),
+        static_cast<float>(combFeedback),
+        static_cast<float>(formantFreq0),
+        static_cast<float>(formantFreq1),
+        static_cast<float>(formantQ0),
+        static_cast<float>(formantQ1),
+        static_cast<float>(formantGain0),
+        static_cast<float>(formantGain1),
+        static_cast<float>(turboGain),
+        static_cast<float>(turboSpeedRatio),
+        static_cast<int>(turboBladeCount)
+    );
+}
+
+// ── nativeTriggerBackfire ─────────────────────────────────────────────────────
+
+JNIEXPORT void JNICALL
+Java_com_enginex_audio_OboeAudioEngine_nativeTriggerBackfire(
+        JNIEnv* env, jobject thiz)
+{
+    OboeEngine* e = getEngine(env, thiz);
+    if (e) e->triggerBackfire();
+}
+
+// ── nativeIsRunning ───────────────────────────────────────────────────────────
+
+JNIEXPORT jboolean JNICALL
+Java_com_enginex_audio_OboeAudioEngine_nativeIsRunning(
+        JNIEnv* env, jobject thiz)
+{
+    OboeEngine* e = getEngine(env, thiz);
+    return e ? static_cast<jboolean>(e->isRunning()) : JNI_FALSE;
 }
 
 } // extern "C"
