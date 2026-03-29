@@ -6,8 +6,11 @@ package com.example.enginegamma.engine
  * These are used by [EnginePhysics] (RPM simulation) and passed to [OboeAudioEngine]
  * (DSP configuration) when a vehicle is selected.
  *
- * Profiles are designed so that harmonic weights + formant freqs + comb feedback
- * produce a recognisably different sonic character per vehicle.
+ * Phase 2 additions:
+ *   - [intakeSampleGain]  : blend level for the procedural intake texture sample.
+ *   - [exhaustSampleGain] : blend level for the procedural exhaust texture sample.
+ *     Higher values give a grittier, more physical character.
+ *     NA (n/a turbo) vehicles use 0.0 for [turboGain].
  */
 object VehicleProfiles {
 
@@ -45,6 +48,12 @@ object VehicleProfiles {
         /** Number of compressor blades (typ 9–13). */
         val turboBladeCount: Int    = 11,
 
+        // ── Hybrid sample mixing (Phase 2) ────────────────────────────────────
+        /** Intake texture sample blend level [0, 1]. Higher = more induction roar. */
+        val intakeSampleGain:  Double = 0.06,
+        /** Exhaust texture sample blend level [0, 1]. Higher = grittier exhaust. */
+        val exhaustSampleGain: Double = 0.08,
+
         val emoji: String = "🚗"
     )
 
@@ -67,6 +76,8 @@ object VehicleProfiles {
         formantQ1     = 3.0,
         formantGain0  = 0.35,
         formantGain1  = 0.25,
+        intakeSampleGain  = 0.07,
+        exhaustSampleGain = 0.06,
         emoji         = "🚗"
     )
 
@@ -89,6 +100,9 @@ object VehicleProfiles {
         formantQ1     = 2.8,
         formantGain0  = 0.42,
         formantGain1  = 0.30,
+        // V8: heavy exhaust texture, modest intake — exhaust dominates character
+        intakeSampleGain  = 0.05,
+        exhaustSampleGain = 0.14,
         emoji         = "🏎️"
     )
 
@@ -111,6 +125,9 @@ object VehicleProfiles {
         formantQ1     = 3.5,
         formantGain0  = 0.30,
         formantGain1  = 0.22,
+        // Inline-6: smooth, balanced — low sample contribution
+        intakeSampleGain  = 0.05,
+        exhaustSampleGain = 0.07,
         emoji         = "🚙"
     )
 
@@ -133,6 +150,9 @@ object VehicleProfiles {
         formantQ1     = 2.2,
         formantGain0  = 0.28,
         formantGain1  = 0.20,
+        // Single-cyl: loud intake thump, notable exhaust pop
+        intakeSampleGain  = 0.10,
+        exhaustSampleGain = 0.09,
         emoji         = "🏍️"
     )
 
@@ -158,6 +178,9 @@ object VehicleProfiles {
         turboGain       = 0.14,
         turboSpeedRatio = 15.0,
         turboBladeCount = 11,
+        // Turbo: prominent intake rush, moderate exhaust texture
+        intakeSampleGain  = 0.11,
+        exhaustSampleGain = 0.09,
         emoji = "⚡"
     )
 
@@ -180,6 +203,9 @@ object VehicleProfiles {
         formantQ1     = 4.0,
         formantGain0  = 0.38,
         formantGain1  = 0.30,
+        // V10 supercar: strong exhaust wall of sound
+        intakeSampleGain  = 0.06,
+        exhaustSampleGain = 0.13,
         emoji = "🔥"
     )
 
@@ -202,6 +228,9 @@ object VehicleProfiles {
         formantQ1     = 2.8,
         formantGain0  = 0.32,
         formantGain1  = 0.26,
+        // Boxer: distinctive intake thrum, moderate exhaust
+        intakeSampleGain  = 0.09,
+        exhaustSampleGain = 0.08,
         emoji = "🏁"
     )
 
@@ -227,6 +256,9 @@ object VehicleProfiles {
         turboGain       = 0.11,
         turboSpeedRatio = 14.5,
         turboBladeCount = 10,
+        // Turbo 4: strong intake whoosh, moderate exhaust grit
+        intakeSampleGain  = 0.10,
+        exhaustSampleGain = 0.07,
         emoji = "💨"
     )
 

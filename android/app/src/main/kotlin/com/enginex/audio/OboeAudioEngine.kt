@@ -8,8 +8,8 @@ package com.enginex.audio
  *   Java_com_enginex_audio_OboeAudioEngine_native*
  *
  * Thread safety:
- *   All parameter updates (setParams, setProfile) are safe to call from any
- *   thread — the C++ side uses lock-free atomics internally.
+ *   All parameter updates (setParams, setProfile, setGear) are safe to call
+ *   from any thread — the C++ side uses lock-free atomics internally.
  *
  *   init() / release() should be called from the main thread at
  *   Activity create/destroy lifecycle events.
@@ -67,28 +67,38 @@ class OboeAudioEngine {
         nativeSetParams(rpm, throttle)
 
     /**
+     * Update current gear (0 = neutral/free rev, 1–6 = engaged).
+     * Affects engine load calculation and DSP character.
+     * Lock-free, can be called from any thread.
+     */
+    fun setGear(gear: Int) = nativeSetGear(gear)
+
+    /**
      * Change to a different vehicle profile.
      * Takes effect within the next audio callback (~5 ms).
      */
     fun setProfile(
-        cylinders:       Int,
-        harmonicWeights: DoubleArray,
-        noiseLevel:      Double,
-        combFeedback:    Double,
-        formantFreq0:    Double,
-        formantFreq1:    Double,
-        formantQ0:       Double,
-        formantQ1:       Double,
-        formantGain0:    Double,
-        formantGain1:    Double,
-        turboGain:       Double,
-        turboSpeedRatio: Double,
-        turboBladeCount: Int
+        cylinders:          Int,
+        harmonicWeights:    DoubleArray,
+        noiseLevel:         Double,
+        combFeedback:       Double,
+        formantFreq0:       Double,
+        formantFreq1:       Double,
+        formantQ0:          Double,
+        formantQ1:          Double,
+        formantGain0:       Double,
+        formantGain1:       Double,
+        turboGain:          Double,
+        turboSpeedRatio:    Double,
+        turboBladeCount:    Int,
+        intakeSampleGain:   Double,
+        exhaustSampleGain:  Double
     ) = nativeSetProfile(
         cylinders, harmonicWeights, noiseLevel,
         combFeedback,
         formantFreq0, formantFreq1, formantQ0, formantQ1, formantGain0, formantGain1,
-        turboGain, turboSpeedRatio, turboBladeCount
+        turboGain, turboSpeedRatio, turboBladeCount,
+        intakeSampleGain, exhaustSampleGain
     )
 
     /** Manually fire a backfire/pop event (e.g. on rapid throttle lift). */
@@ -121,20 +131,23 @@ class OboeAudioEngine {
     private external fun nativeStop()
     private external fun nativeRelease()
     private external fun nativeSetParams(rpm: Double, throttle: Double)
+    private external fun nativeSetGear(gear: Int)
     private external fun nativeSetProfile(
-        cylinders:       Int,
-        harmonicWeights: DoubleArray,
-        noiseLevel:      Double,
-        combFeedback:    Double,
-        formantFreq0:    Double,
-        formantFreq1:    Double,
-        formantQ0:       Double,
-        formantQ1:       Double,
-        formantGain0:    Double,
-        formantGain1:    Double,
-        turboGain:       Double,
-        turboSpeedRatio: Double,
-        turboBladeCount: Int
+        cylinders:         Int,
+        harmonicWeights:   DoubleArray,
+        noiseLevel:        Double,
+        combFeedback:      Double,
+        formantFreq0:      Double,
+        formantFreq1:      Double,
+        formantQ0:         Double,
+        formantQ1:         Double,
+        formantGain0:      Double,
+        formantGain1:      Double,
+        turboGain:         Double,
+        turboSpeedRatio:   Double,
+        turboBladeCount:   Int,
+        intakeSampleGain:  Double,
+        exhaustSampleGain: Double
     )
     private external fun nativeTriggerBackfire()
     private external fun nativeIsRunning(): Boolean

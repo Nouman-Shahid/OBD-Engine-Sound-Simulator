@@ -105,6 +105,24 @@ class EngineChannelHandler(
             turboSpeedRatio = p.turboSpeedRatio,
             turboBladeCount = p.turboBladeCount
         )
+        // Apply per-profile sample gains immediately after init
+        audioEngine.setProfile(
+            cylinders         = p.cylinders,
+            harmonicWeights   = p.harmonicWeights,
+            noiseLevel        = p.noiseLevel,
+            combFeedback      = p.combFeedback,
+            formantFreq0      = p.formantFreq0,
+            formantFreq1      = p.formantFreq1,
+            formantQ0         = p.formantQ0,
+            formantQ1         = p.formantQ1,
+            formantGain0      = p.formantGain0,
+            formantGain1      = p.formantGain1,
+            turboGain         = p.turboGain,
+            turboSpeedRatio   = p.turboSpeedRatio,
+            turboBladeCount   = p.turboBladeCount,
+            intakeSampleGain  = p.intakeSampleGain,
+            exhaustSampleGain = p.exhaustSampleGain
+        )
     }
 
     // ── Method channel setup ──────────────────────────────────────────────────
@@ -122,6 +140,8 @@ class EngineChannelHandler(
                 "setGear"         -> {
                     val g = (call.argument<Int>("gear") ?: 0)
                     physics.setGear(g)
+                    _currentGear = g
+                    audioEngine.setGear(g)
                     result.success(null)
                 }
                 "setVehicle"      -> {
@@ -239,19 +259,21 @@ class EngineChannelHandler(
         val profile = VehicleProfiles.findById(id)
         physics.setProfile(profile)
         audioEngine.setProfile(
-            cylinders       = profile.cylinders,
-            harmonicWeights = profile.harmonicWeights,
-            noiseLevel      = profile.noiseLevel,
-            combFeedback    = profile.combFeedback,
-            formantFreq0    = profile.formantFreq0,
-            formantFreq1    = profile.formantFreq1,
-            formantQ0       = profile.formantQ0,
-            formantQ1       = profile.formantQ1,
-            formantGain0    = profile.formantGain0,
-            formantGain1    = profile.formantGain1,
-            turboGain       = profile.turboGain,
-            turboSpeedRatio = profile.turboSpeedRatio,
-            turboBladeCount = profile.turboBladeCount
+            cylinders         = profile.cylinders,
+            harmonicWeights   = profile.harmonicWeights,
+            noiseLevel        = profile.noiseLevel,
+            combFeedback      = profile.combFeedback,
+            formantFreq0      = profile.formantFreq0,
+            formantFreq1      = profile.formantFreq1,
+            formantQ0         = profile.formantQ0,
+            formantQ1         = profile.formantQ1,
+            formantGain0      = profile.formantGain0,
+            formantGain1      = profile.formantGain1,
+            turboGain         = profile.turboGain,
+            turboSpeedRatio   = profile.turboSpeedRatio,
+            turboBladeCount   = profile.turboBladeCount,
+            intakeSampleGain  = profile.intakeSampleGain,
+            exhaustSampleGain = profile.exhaustSampleGain
         )
     }
 
