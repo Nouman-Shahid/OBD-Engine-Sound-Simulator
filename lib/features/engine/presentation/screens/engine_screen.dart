@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'package:enginex/core/constants/app_constants.dart';
 import 'package:enginex/core/theme/app_theme.dart';
 import 'package:enginex/features/engine/data/models/vehicle_profile.dart';
 import 'package:enginex/features/engine/domain/engine_providers.dart';
+import 'package:enginex/features/engine/presentation/screens/obd_connect_screen.dart';
 import 'package:enginex/features/engine/presentation/screens/vehicle_selector_screen.dart';
 import 'package:enginex/features/engine/presentation/widgets/engine_status_panel.dart';
 import 'package:enginex/features/engine/presentation/widgets/gear_selector.dart';
+import 'package:enginex/features/engine/presentation/widgets/obd_status_badge.dart';
 import 'package:enginex/features/engine/presentation/widgets/rpm_gauge.dart';
 import 'package:enginex/features/engine/presentation/widgets/throttle_slider.dart';
 
@@ -21,11 +24,11 @@ class EngineScreen extends ConsumerStatefulWidget {
 
 class _EngineScreenState extends ConsumerState<EngineScreen>
     with WidgetsBindingObserver {
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // Select the vehicle that was passed from the selector screen.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(engineProvider.notifier).selectVehicle(widget.vehicle);
     });
@@ -39,10 +42,17 @@ class _EngineScreenState extends ConsumerState<EngineScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.detached) {
+    // Background is allowed — foreground service keeps audio alive.
+    // Only stop on full detach.
+    if (state == AppLifecycleState.detached) {
       ref.read(engineProvider.notifier).stopEngine();
     }
+  }
+
+  void _openOBD() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const OBDConnectScreen()),
+    );
   }
 
   @override
@@ -50,17 +60,19 @@ class _EngineScreenState extends ConsumerState<EngineScreen>
     final engine    = ref.watch(engineProvider);
     final notifier  = ref.read(engineProvider.notifier);
     final isRunning = engine.isRunning;
+    final hasTurbo  = widget.vehicle.turboGain > 0;
 
     return Scaffold(
       backgroundColor: AppTheme.background,
       body: SafeArea(
         child: Column(
           children: [
-            _buildHeader(context, notifier, isRunning),
-            const SizedBox(height: 8),
+            _buildHeader(context, notifier, isRunning, hasTurbo),
+            const SizedBox(height: 6),
             EngineStatusPanel(state: engine),
-            const SizedBox(height: 16),
-            // ── RPM Gauge ──────────────────────────────────────────────────
+            const SizedBox(height: 12),
+
+            // ── RPM Gauge ─────────────────────────────────────────────────
             Center(
               child: RpmGauge(
                 rpm:           engine.rpm,
@@ -69,11 +81,14 @@ class _EngineScreenState extends ConsumerState<EngineScreen>
                 isRevLimiting: engine.isRevLimiting,
               ),
             ),
-            const SizedBox(height: 8),
-            // Numeric RPM readout.
+            const SizedBox(height: 6),
+
+            // ── Digital RPM readout ───────────────────────────────────────
             _RpmReadout(rpm: engine.rpm, isRunning: isRunning),
+
             const Spacer(),
-            // ── Controls row ───────────────────────────────────────────────
+
+            // ── Controls row ──────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Row(
@@ -93,19 +108,29 @@ class _EngineScreenState extends ConsumerState<EngineScreen>
                 ],
               ),
             ),
-            const SizedBox(height: 24),
-            // ── Start / Stop button ────────────────────────────────────────
-            _StartStopButton(
-              isRunning: isRunning,
-              onTap: () {
-                if (isRunning) {
-                  notifier.stopEngine();
-                } else {
-                  notifier.startEngine();
-                }
-              },
+
+            const SizedBox(height: 16),
+
+            // ── Action row (start + optional backfire) ────────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _StartStopButton(
+                    isRunning: isRunning,
+                    onTap: () => isRunning
+                        ? notifier.stopEngine()
+                        : notifier.startEngine(),
+                  ),
+                  if (isRunning) ...[
+                    const SizedBox(width: 12),
+                    _BackfireButton(onTap: notifier.triggerBackfire),
+                  ],
+                ],
+              ),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 28),
           ],
         ),
       ),
@@ -116,12 +141,13 @@ class _EngineScreenState extends ConsumerState<EngineScreen>
     BuildContext context,
     dynamic notifier,
     bool isRunning,
+    bool hasTurbo,
   ) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       child: Row(
         children: [
-          // Back to selector.
+          // Back button
           GestureDetector(
             onTap: () async {
               if (isRunning) {
@@ -145,32 +171,56 @@ class _EngineScreenState extends ConsumerState<EngineScreen>
               child: const Icon(
                 Icons.arrow_back_ios_new_rounded,
                 color: AppTheme.onSurface,
-                size: 18,
+                size: 16,
               ),
             ),
           ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                widget.vehicle.name,
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              Text(
-                widget.vehicle.description,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppTheme.onSurfaceDim,
-                  fontSize: 12,
+          const SizedBox(width: 10),
+          // Vehicle info
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      widget.vehicle.name,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    if (hasTurbo) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppTheme.accentBlue.withAlpha(30),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: AppTheme.accentBlue.withAlpha(120)),
+                        ),
+                        child: const Text('TURBO',
+                            style: TextStyle(
+                                color: AppTheme.accentBlue,
+                                fontSize: 9, fontWeight: FontWeight.w700,
+                                letterSpacing: 0.5)),
+                      ),
+                    ],
+                  ],
                 ),
-              ),
-            ],
+                Text(
+                  widget.vehicle.description,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.onSurfaceDim,
+                    fontSize: 11,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
-          const Spacer(),
-          Text(
-            widget.vehicle.emoji,
-            style: const TextStyle(fontSize: 32),
-          ),
+          // OBD badge
+          OBDStatusBadge(onTap: _openOBD),
+          const SizedBox(width: 8),
+          Text(widget.vehicle.emoji, style: const TextStyle(fontSize: 28)),
         ],
       ),
     );
@@ -191,7 +241,7 @@ class _RpmReadout extends StatelessWidget {
         Text(
           isRunning ? rpm.round().toString().padLeft(5, '0') : '00000',
           style: GoogleFonts.robotoMono(
-            fontSize: 42,
+            fontSize: 40,
             fontWeight: FontWeight.w700,
             color: AppTheme.onBackground,
             letterSpacing: 4,
@@ -210,11 +260,8 @@ class _RpmReadout extends StatelessWidget {
 }
 
 class _StartStopButton extends StatefulWidget {
-  const _StartStopButton({
-    required this.isRunning,
-    required this.onTap,
-  });
-  final bool      isRunning;
+  const _StartStopButton({required this.isRunning, required this.onTap});
+  final bool         isRunning;
   final VoidCallback onTap;
 
   @override
@@ -229,28 +276,19 @@ class _StartStopButtonState extends State<_StartStopButton>
   void initState() {
     super.initState();
     _pulse = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    );
+      vsync: this, duration: const Duration(milliseconds: 1200));
     if (widget.isRunning) _pulse.repeat(reverse: true);
   }
 
   @override
   void didUpdateWidget(_StartStopButton old) {
     super.didUpdateWidget(old);
-    if (widget.isRunning && !old.isRunning) {
-      _pulse.repeat(reverse: true);
-    } else if (!widget.isRunning && old.isRunning) {
-      _pulse.stop();
-      _pulse.reset();
-    }
+    if (widget.isRunning && !old.isRunning)      _pulse.repeat(reverse: true);
+    else if (!widget.isRunning && old.isRunning) { _pulse.stop(); _pulse.reset(); }
   }
 
   @override
-  void dispose() {
-    _pulse.dispose();
-    super.dispose();
-  }
+  void dispose() { _pulse.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
@@ -261,18 +299,13 @@ class _StartStopButtonState extends State<_StartStopButton>
         return GestureDetector(
           onTap: widget.onTap,
           child: Container(
-            width: 180,
-            height: 56,
+            width: 170, height: 52,
             decoration: BoxDecoration(
-              color: widget.isRunning
-                  ? AppTheme.accentRed
-                  : AppTheme.accentGreen,
-              borderRadius: BorderRadius.circular(28),
+              color: widget.isRunning ? AppTheme.accentRed : AppTheme.accentGreen,
+              borderRadius: BorderRadius.circular(26),
               boxShadow: [
                 BoxShadow(
-                  color: (widget.isRunning
-                      ? AppTheme.accentRed
-                      : AppTheme.accentGreen)
+                  color: (widget.isRunning ? AppTheme.accentRed : AppTheme.accentGreen)
                       .withAlpha((glow * 120 + 40).round()),
                   blurRadius: 20 + glow * 10,
                   spreadRadius: glow * 4,
@@ -284,27 +317,76 @@ class _StartStopButtonState extends State<_StartStopButton>
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  widget.isRunning
-                      ? Icons.stop_rounded
-                      : Icons.play_arrow_rounded,
-                  color: Colors.white,
-                  size: 28,
-                ),
-                const SizedBox(width: 8),
+                  widget.isRunning ? Icons.stop_rounded : Icons.play_arrow_rounded,
+                  color: Colors.white, size: 26),
+                const SizedBox(width: 6),
                 Text(
                   widget.isRunning ? 'STOP ENGINE' : 'START ENGINE',
                   style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                    letterSpacing: 1.0,
-                  ),
-                ),
+                      color: Colors.white, fontWeight: FontWeight.w700,
+                      fontSize: 14, letterSpacing: 1.0)),
               ],
             ),
           ),
         );
       },
+    );
+  }
+}
+
+/// Manual backfire/pop trigger button.
+class _BackfireButton extends StatefulWidget {
+  const _BackfireButton({required this.onTap});
+  final VoidCallback onTap;
+  @override
+  State<_BackfireButton> createState() => _BackfireButtonState();
+}
+
+class _BackfireButtonState extends State<_BackfireButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _flash;
+
+  @override
+  void initState() {
+    super.initState();
+    _flash = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 200));
+  }
+
+  @override
+  void dispose() { _flash.dispose(); super.dispose(); }
+
+  void _onTap() {
+    widget.onTap();
+    _flash.forward(from: 0).then((_) => _flash.reverse());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _flash,
+      builder: (context, _) => GestureDetector(
+        onTap: _onTap,
+        child: Container(
+          width: 52, height: 52,
+          decoration: BoxDecoration(
+            color: Color.lerp(AppTheme.surfaceVariant,
+                AppTheme.accentOrange, _flash.value),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: Color.lerp(AppTheme.border,
+                  AppTheme.accentOrange, _flash.value)!),
+            boxShadow: _flash.value > 0.1 ? [
+              BoxShadow(
+                color: AppTheme.accentOrange.withAlpha((_flash.value * 100).round()),
+                blurRadius: 12, spreadRadius: 2),
+            ] : null,
+          ),
+          child: const Center(
+            child: Text('💥', style: TextStyle(fontSize: 22)),
+          ),
+        ),
+      ),
     );
   }
 }

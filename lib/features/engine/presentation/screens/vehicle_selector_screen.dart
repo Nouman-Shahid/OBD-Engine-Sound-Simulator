@@ -19,17 +19,17 @@ class VehicleSelectorScreen extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(height: 32),
+            const SizedBox(height: 28),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'ENGINEX',
+                    'ENGINEX PRO',
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       color: AppTheme.accentOrange,
-                      fontSize: 13,
+                      fontSize: 12,
                       letterSpacing: 4,
                       fontWeight: FontWeight.w700,
                     ),
@@ -38,13 +38,13 @@ class VehicleSelectorScreen extends ConsumerWidget {
                   Text(
                     'Select\nVehicle',
                     style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                      fontSize: 52,
+                      fontSize: 48,
                       height: 1.05,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Choose a powertrain profile to simulate.',
+                    '${vehicles.length} powertrain profiles — real-time synthesis.',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: AppTheme.onSurfaceDim,
                     ),
@@ -52,12 +52,12 @@ class VehicleSelectorScreen extends ConsumerWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 20),
             Expanded(
               child: ListView.separated(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                 itemCount: vehicles.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
                 itemBuilder: (context, i) => _VehicleCard(
                   profile: vehicles[i],
                   onTap: () => _navigate(context, vehicles[i]),
@@ -84,7 +84,7 @@ class VehicleSelectorScreen extends ConsumerWidget {
             child: child,
           ),
         ),
-        transitionDuration: const Duration(milliseconds: 350),
+        transitionDuration: const Duration(milliseconds: 320),
       ),
     );
   }
@@ -97,78 +97,93 @@ class _VehicleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasTurbo = profile.turboGain > 0;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: AppTheme.surfaceVariant,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(color: AppTheme.border),
         ),
         child: Row(
           children: [
-            // Icon circle.
+            // Icon
             Container(
-              width: 60,
-              height: 60,
+              width: 56, height: 56,
               decoration: BoxDecoration(
                 color: AppTheme.surface,
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: AppTheme.border),
               ),
               alignment: Alignment.center,
-              child: Text(
-                profile.emoji,
-                style: const TextStyle(fontSize: 28),
-              ),
+              child: Text(profile.emoji, style: const TextStyle(fontSize: 26)),
             ),
-            const SizedBox(width: 16),
-            // Info.
+            const SizedBox(width: 14),
+            // Info
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    profile.name,
-                    style: Theme.of(context).textTheme.titleLarge,
+                  Row(
+                    children: [
+                      Text(profile.name,
+                          style: Theme.of(context).textTheme.titleLarge),
+                      if (hasTurbo) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 5, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppTheme.accentBlue.withAlpha(30),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                                color: AppTheme.accentBlue.withAlpha(100)),
+                          ),
+                          child: const Text('TURBO',
+                              style: TextStyle(
+                                  color: AppTheme.accentBlue,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.5)),
+                        ),
+                      ],
+                    ],
                   ),
                   const SizedBox(height: 2),
                   Text(
                     profile.description,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: AppTheme.onSurfaceDim,
-                      fontSize: 13,
+                      fontSize: 12,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 8),
-                  // Spec pills.
+                  const SizedBox(height: 6),
+                  // Spec pills
                   Row(
                     children: [
+                      _SpecPill('${profile.cylinders} CYL', AppTheme.accentBlue),
+                      const SizedBox(width: 5),
                       _SpecPill(
-                        label: '${profile.cylinders} CYL',
-                        color: AppTheme.accentBlue,
+                        '${(profile.revLimiterRpm / 1000).toStringAsFixed(1)}k RPM',
+                        AppTheme.accentOrange,
                       ),
-                      const SizedBox(width: 6),
+                      const SizedBox(width: 5),
                       _SpecPill(
-                        label: '${(profile.revLimiterRpm / 1000).toStringAsFixed(1)}k RPM',
-                        color: AppTheme.accentOrange,
-                      ),
-                      const SizedBox(width: 6),
-                      _SpecPill(
-                        label: '${profile.gearRatios.length - 1} SPD',
-                        color: AppTheme.accentGreen,
+                        '${profile.gearRatios.length - 1} SPD',
+                        AppTheme.accentGreen,
                       ),
                     ],
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 8),
-            const Icon(
-              Icons.chevron_right_rounded,
-              color: AppTheme.onSurfaceDim,
-            ),
+            const SizedBox(width: 6),
+            const Icon(Icons.chevron_right_rounded, color: AppTheme.onSurfaceDim),
           ],
         ),
       ),
@@ -177,27 +192,24 @@ class _VehicleCard extends StatelessWidget {
 }
 
 class _SpecPill extends StatelessWidget {
-  const _SpecPill({required this.label, required this.color});
+  const _SpecPill(this.label, this.color);
   final String label;
   final Color  color;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withAlpha(30),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withAlpha(120)),
+        color: color.withAlpha(25),
+        borderRadius: BorderRadius.circular(5),
+        border: Border.all(color: color.withAlpha(100)),
       ),
       child: Text(
         label,
         style: TextStyle(
-          color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.5,
-        ),
+            color: color, fontSize: 10,
+            fontWeight: FontWeight.w700, letterSpacing: 0.4),
       ),
     );
   }
