@@ -52,8 +52,11 @@ static void fillBandpassNoise(float* buf, int len,
     // Normalise gain so peak output ≈ gain
     const float g  = (1.0f - r) * gain * 2.0f;
 
+    // Correct 2-pole bandpass recursion:
+    //   y[n] = g*(x[n]-x[n-2]) + 2r*cos(w0)*y[n-1] - r²*y[n-2]
+    // Poles at z = r*e^(±jw0) — inside unit circle for r < 1.
     const float a1 =  2.0f * r * std::cos(w0);
-    const float a2 = -(r * r);
+    const float a2 =  r * r;   // positive — subtracted in recursion below
 
     float xm1 = 0.0f, xm2 = 0.0f;
     float ym1 = 0.0f, ym2 = 0.0f;
@@ -61,7 +64,7 @@ static void fillBandpassNoise(float* buf, int len,
     // Warm up — run 512 samples through filter to reach steady state
     for (int i = 0; i < 512; ++i) {
         const float x = genNoise();
-        const float y = g * (x - xm2) - a2 * ym2 + a1 * ym1;
+        const float y = g * (x - xm2) + a1 * ym1 - a2 * ym2;
         xm2 = xm1; xm1 = x;
         ym2 = ym1; ym1 = y;
     }
@@ -69,7 +72,7 @@ static void fillBandpassNoise(float* buf, int len,
     // Fill output buffer
     for (int i = 0; i < len; ++i) {
         const float x = genNoise();
-        const float y = g * (x - xm2) - a2 * ym2 + a1 * ym1;
+        const float y = g * (x - xm2) + a1 * ym1 - a2 * ym2;
         xm2 = xm1; xm1 = x;
         ym2 = ym1; ym1 = y;
         buf[i] = y;
